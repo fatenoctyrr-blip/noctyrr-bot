@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     def normalize_database_url(cls, value: object) -> object:
         if isinstance(value, str):
             value = value.strip()
+            if value.startswith("DATABASE_URL="):
+                value = value.removeprefix("DATABASE_URL=").strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
                 value = value[1:-1].strip()
             if value.startswith("postgres://"):
@@ -37,6 +39,8 @@ class Settings(BaseSettings):
     def normalize_redis_url(cls, value: object) -> object:
         if isinstance(value, str):
             value = value.strip()
+            if value.startswith("REDIS_URL="):
+                value = value.removeprefix("REDIS_URL=").strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
                 value = value[1:-1].strip()
             if value.startswith("redis+tls://"):
