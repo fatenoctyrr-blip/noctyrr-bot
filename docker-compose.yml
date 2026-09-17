@@ -31,6 +31,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       AUTO_CREATE_SCHEMA: ${AUTO_CREATE_SCHEMA:-true}
       CONTEST_POLL_SECONDS: ${CONTEST_POLL_SECONDS:-30}
+      DB_CONNECT_RETRIES: ${DB_CONNECT_RETRIES:-12}
+      DB_RETRY_SECONDS: ${DB_RETRY_SECONDS:-5}
     depends_on:
       postgres:
         condition: service_healthy

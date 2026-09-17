@@ -26,15 +26,26 @@ Production serverda quyidagi secret/environment o'zgaruvchini bering:
 BOT_API_TOKEN=<BotFather token>
 GRAND_ADMIN_ID=<your Telegram user ID>
 POSTGRES_PASSWORD=<strong database password>
+DATABASE_URL=postgresql+asyncpg://postgres:<password>@<postgres-host>:5432/oyunlar
+REDIS_URL=redis://<redis-host>:6379/0
+DB_CONNECT_RETRIES=12
+DB_RETRY_SECONDS=5
 ```
 
 Qolgan qiymatlar koddagi xavfsiz defaultlar orqali berilgan, lekin production'da quyidagilarni ham environment sifatida qo'yish tavsiya etiladi:
 
 ```text
 DEFAULT_CHANNEL_ID=-100...
-DATABASE_URL=postgresql+asyncpg://...
-REDIS_URL=redis://...
 ```
+
+`docker compose up` bilan ishga tushirilganda `DATABASE_URL` va `REDIS_URL` Compose
+tomonidan ichki servis nomlariga almashtiriladi: PostgreSQL hosti `postgres`, Redis
+hosti `redis`. Agar faqat bot image'i yoki oddiy Python process ishga tushirilsa,
+`localhost:5432` faqat PostgreSQL aynan shu serverda ishlayotgan bo'lsa to'g'ri bo'ladi.
+Alohida database serveri uchun `DATABASE_URL`da o'sha serverning haqiqiy hostini yozing.
+
+Bot database ishga tushishini `DB_CONNECT_RETRIES` va `DB_RETRY_SECONDS` orqali kutadi.
+Ulanish bo'lmasa logda `DATABASE_URL` hostini tekshirish kerakligi aniq ko'rsatiladi.
 
 ## Telegram sozlamalari
 

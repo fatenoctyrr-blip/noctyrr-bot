@@ -15,7 +15,7 @@ Bot tokeni, Grand Admin ID'si va kanal ID'si source code ichiga yozilmaydi. Ular
    cp .env.example .env
    ```
 
-3. `.env` ichidagi qiymatlarni to'ldiring: `BOT_API_TOKEN`, `GRAND_ADMIN_ID` va `POSTGRES_PASSWORD` majburiy. `DEFAULT_CHANNEL_ID` ixtiyoriy.
+3. `.env` ichidagi qiymatlarni to'ldiring: `BOT_API_TOKEN`, `GRAND_ADMIN_ID`, `DATABASE_URL` va `REDIS_URL` majburiy. Docker Compose'da `DATABASE_URL` va `REDIS_URL` ichki servislar bilan avtomatik beriladi.
 4. PostgreSQL va Redis'ni ishga tushiring:
 
    ```bash
@@ -139,3 +139,4 @@ tests/
 - Konkurs natijalarini o'zgartirish faqat Grand Admin ID orqali amalga oshadi va `admin_overrides` jadvaliga audit yozuvi tushadi.
 - `POSTGRES_PASSWORD`ni production'da kuchli qiymatga almashtiring; database va Redis portlari Compose orqali tashqariga ochilmaydi.
 - Contest command'lari chat scope bilan himoyalangan; admin paneli esa faqat Grand Admin uchun ko'rinadi.
+- Docker Compose ishlatilmasa, `DATABASE_URL` ichidagi `localhost` PostgreSQL haqiqatan ham shu serverda ishlayotganini tekshiring.
