@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_database_url(cls, value: object) -> object:
         if isinstance(value, str):
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1].strip()
             if value.startswith("postgres://"):
                 return "postgresql+asyncpg://" + value.removeprefix("postgres://")
             if value.startswith("postgresql://"):
@@ -32,8 +35,13 @@ class Settings(BaseSettings):
     @field_validator("redis_url", mode="before")
     @classmethod
     def normalize_redis_url(cls, value: object) -> object:
-        if isinstance(value, str) and value.startswith("redis+tls://"):
-            return "rediss://" + value.removeprefix("redis+tls://")
+        if isinstance(value, str):
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1].strip()
+            if value.startswith("redis+tls://"):
+                return "rediss://" + value.removeprefix("redis+tls://")
+            return value
         return value
 
 
