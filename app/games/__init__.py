@@ -1,1 +1,1 @@
-"""Redis-backed group game state machines."""
+"""PostgreSQL-backed group game state machines."""

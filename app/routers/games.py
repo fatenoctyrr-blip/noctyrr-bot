@@ -8,13 +8,13 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.db import SessionLocal
 from app.games.bunker import BunkerState
 from app.games.mafia import MafiaPhase, MafiaState
-from app.games.redis_store import GameStore
-from app.redis import redis_client
+from app.games.postgres_store import GameStore
 
 router = Router(name="games")
-store = GameStore(redis_client)
+store = GameStore(SessionLocal)
 
 
 def lobby_keyboard(chat_id: int, game_type: str) -> InlineKeyboardMarkup:
@@ -49,6 +49,7 @@ async def create_lobby(message: Message, game_type: str) -> None:
         state = BunkerState(chat_id=message.chat.id).to_dict()
         title = "🏚 Bunker lobby ochildi. O'yinchilar qo'shilsin."
     state["type"] = game_type
+    state["_creator_telegram_id"] = message.from_user.id if message.from_user else None
     await store.save(message.chat.id, state)
     await message.answer(title, reply_markup=lobby_keyboard(message.chat.id, game_type))
 
@@ -67,7 +68,13 @@ async def start_game(message: Message) -> None:
         gift = "Admin sovg'asi"
         await store.save(
             message.chat.id,
-            {"type": "jackpot", "chat_id": message.chat.id, "target": target, "gift": gift},
+            {
+                "type": "jackpot",
+                "chat_id": message.chat.id,
+                "target": target,
+                "gift": gift,
+                "_creator_telegram_id": message.from_user.id if message.from_user else None,
+            },
         )
         await message.answer(
             "🎰 777 Jackpot boshlandi. G'olib kombinatsiya yashirin.\n"
@@ -93,6 +100,7 @@ async def start_game(message: Message) -> None:
                 "high": high,
                 "secret": random.randint(low, high),
                 "winner": None,
+                "_creator_telegram_id": message.from_user.id if message.from_user else None,
             },
         )
         await message.answer(f"🔢 Raqamni topish boshlandi! {low} dan {high} gacha. /guess <raqam>")
@@ -112,7 +120,13 @@ async def start_game(message: Message) -> None:
             return
         await store.save(
             message.chat.id,
-            {"type": "message_lottery", "chat_id": message.chat.id, "gift": gift, "chance": chance},
+            {
+                "type": "message_lottery",
+                "chat_id": message.chat.id,
+                "gift": gift,
+                "chance": chance,
+                "_creator_telegram_id": message.from_user.id if message.from_user else None,
+            },
         )
         await message.answer(f"🎟 Xabar lotereyasi boshlandi. Ehtimol: {chance}%")
     else:

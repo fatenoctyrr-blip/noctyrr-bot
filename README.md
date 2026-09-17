@@ -15,11 +15,11 @@ Bot tokeni, Grand Admin ID'si va kanal ID'si source code ichiga yozilmaydi. Ular
    cp .env.example .env
    ```
 
-3. `.env` ichidagi qiymatlarni to'ldiring: `BOT_API_TOKEN`, `GRAND_ADMIN_ID`, `DATABASE_URL` va `REDIS_URL` majburiy. Docker Compose'da `DATABASE_URL` va `REDIS_URL` ichki servislar bilan avtomatik beriladi.
-4. PostgreSQL va Redis'ni ishga tushiring:
+3. `.env` ichidagi qiymatlarni to'ldiring: `BOT_API_TOKEN`, `GRAND_ADMIN_ID` va `DATABASE_URL` majburiy. Docker Compose'da `DATABASE_URL` ichki PostgreSQL servisi bilan avtomatik beriladi.
+4. PostgreSQL'ni ishga tushiring:
 
    ```bash
-   docker compose up -d postgres redis
+   docker compose up -d postgres
    ```
 
 5. Python muhitini yaratib, paketlarni o'rnating:
@@ -125,7 +125,7 @@ tests/
 - Ko'p kanal/guruhga majburiy obuna tekshiruvi.
 - Ballik konkurs, reaction/comment eventlari, admin ball qo'shishi va reyting.
 - Konkurs muddati kelganda avtomatik yakunlash.
-- Mafia/Bunker sessiyalari Redis'da saqlanishi va bir nechta chatda parallel ishlashi.
+- Mafia/Bunker sessiyalari PostgreSQL'da saqlanishi va bir nechta chatda parallel ishlashi.
 - Jackpot, guess number va xabar lotereyasi.
 - Grand Admin winner override va audit.
 
@@ -133,10 +133,10 @@ tests/
 
 - Botga kanal/guruhda zarur admin huquqlarini bering.
 - Webhook yoki process supervisor (systemd/Docker) qo'llang.
-- Redis va PostgreSQL backup/monitoring qo'shing.
+- PostgreSQL backup/monitoring qo'shing.
 - Telegram API rate limitlarini kuzating.
 - Pullik Stars uchun Telegram payment verification'ni payment provider va biznes qoidalariga moslab ulang; adminning `purchased` ball buyrug'i allaqachon mavjud.
 - Konkurs natijalarini o'zgartirish faqat Grand Admin ID orqali amalga oshadi va `admin_overrides` jadvaliga audit yozuvi tushadi.
-- `POSTGRES_PASSWORD`ni production'da kuchli qiymatga almashtiring; database va Redis portlari Compose orqali tashqariga ochilmaydi.
+- `POSTGRES_PASSWORD`ni production'da kuchli qiymatga almashtiring; database porti Compose orqali tashqariga ochilmaydi.
 - Contest command'lari chat scope bilan himoyalangan; admin paneli esa faqat Grand Admin uchun ko'rinadi.
 - Docker Compose ishlatilmasa, `DATABASE_URL` ichidagi `localhost` PostgreSQL haqiqatan ham shu serverda ishlayotganini tekshiring.

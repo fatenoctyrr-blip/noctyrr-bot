@@ -5,9 +5,8 @@ from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.db import SessionLocal
-from app.games.redis_store import GameStore
+from app.games.postgres_store import GameStore
 from app.models import BattleContest, Channel, ContestStatus, PointContest, User
-from app.redis import redis_client
 from app.services.contests import (
     finish_contest,
     override_winner,
@@ -308,10 +307,10 @@ async def game_config(message: Message) -> None:
         await message.answer("/game_config <chat_id> <target|secret|chance|gift> <value>")
         return
     chat_id, key, value = int(args[1]), args[2], args[3]
-    store = GameStore(redis_client)
+    store = GameStore(SessionLocal)
     data = await store.load(chat_id)
     if not data:
-        await message.answer("Bu chatda faol Redis o'yini yo'q.")
+        await message.answer("Bu chatda faol o'yin yo'q.")
         return
     if key == "secret":
         data[key] = int(value)

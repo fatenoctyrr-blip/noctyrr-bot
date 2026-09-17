@@ -9,7 +9,6 @@ class Settings(BaseSettings):
     grand_admin_id: int = Field(alias="GRAND_ADMIN_ID")
     default_channel_id: int | None = Field(default=None, alias="DEFAULT_CHANNEL_ID")
     database_url: str = Field(alias="DATABASE_URL")
-    redis_url: str = Field(alias="REDIS_URL")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     timezone: str = Field(default="Asia/Samarkand", alias="TIMEZONE")
     auto_create_schema: bool = Field(default=True, alias="AUTO_CREATE_SCHEMA")
@@ -33,28 +32,6 @@ class Settings(BaseSettings):
             if value.startswith("postgresql://"):
                 return "postgresql+asyncpg://" + value.removeprefix("postgresql://")
         return value
-
-    @field_validator("redis_url", mode="before")
-    @classmethod
-    def normalize_redis_url(cls, value: object) -> object:
-        if isinstance(value, str):
-            value = value.strip()
-            if "=" in value and value.split("=", 1)[0].strip() == "REDIS_URL":
-                value = value.split("=", 1)[1].strip()
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-                value = value[1:-1].strip()
-            if not value:
-                raise ValueError(
-                    "REDIS_URL bo'sh. Redis URL'ni redis://host:6379/0 "
-                    "yoki rediss://host:6380/0 ko'rinishida kiriting."
-                )
-            if value.startswith("redis+tls://"):
-                return "rediss://" + value.removeprefix("redis+tls://")
-            if "://" not in value:
-                return "redis://" + value
-            return value
-        return value
-
 
 @lru_cache
 def get_settings() -> Settings:
