@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.config import get_settings
 from app.db import engine
 from app.models import Base
+from app.redis import close_redis, initialize_redis
 from app.routers import admin, contests, games, user
 from app.services.lifecycle import contest_watcher
 
@@ -57,10 +58,12 @@ async def run() -> None:
     dispatcher = Dispatcher()
     dispatcher.include_routers(admin.router, contests.router, games.router, user.router)
     await initialize_database()
+    await initialize_redis()
     watcher = asyncio.create_task(contest_watcher(bot))
     try:
         await dispatcher.start_polling(bot)
     finally:
         watcher.cancel()
         await engine.dispose()
+        await close_redis()
         await bot.session.close()

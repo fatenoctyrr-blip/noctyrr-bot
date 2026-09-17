@@ -7,15 +7,14 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from redis.asyncio import Redis
 
-from app.config import get_settings
 from app.games.bunker import BunkerState
 from app.games.mafia import MafiaPhase, MafiaState
 from app.games.redis_store import GameStore
+from app.redis import redis_client
 
 router = Router(name="games")
-store = GameStore(Redis.from_url(get_settings().redis_url, decode_responses=True))
+store = GameStore(redis_client)
 
 
 def lobby_keyboard(chat_id: int, game_type: str) -> InlineKeyboardMarkup:

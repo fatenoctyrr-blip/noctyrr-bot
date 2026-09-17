@@ -1,13 +1,13 @@
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from redis.asyncio import Redis
 from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.db import SessionLocal
 from app.games.redis_store import GameStore
 from app.models import BattleContest, Channel, ContestStatus, PointContest, User
+from app.redis import redis_client
 from app.services.contests import (
     finish_contest,
     override_winner,
@@ -308,7 +308,7 @@ async def game_config(message: Message) -> None:
         await message.answer("/game_config <chat_id> <target|secret|chance|gift> <value>")
         return
     chat_id, key, value = int(args[1]), args[2], args[3]
-    store = GameStore(Redis.from_url(get_settings().redis_url, decode_responses=True))
+    store = GameStore(redis_client)
     data = await store.load(chat_id)
     if not data:
         await message.answer("Bu chatda faol Redis o'yini yo'q.")
