@@ -39,12 +39,19 @@ class Settings(BaseSettings):
     def normalize_redis_url(cls, value: object) -> object:
         if isinstance(value, str):
             value = value.strip()
-            if value.startswith("REDIS_URL="):
-                value = value.removeprefix("REDIS_URL=").strip()
+            if "=" in value and value.split("=", 1)[0].strip() == "REDIS_URL":
+                value = value.split("=", 1)[1].strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
                 value = value[1:-1].strip()
+            if not value:
+                raise ValueError(
+                    "REDIS_URL bo'sh. Redis URL'ni redis://host:6379/0 "
+                    "yoki rediss://host:6380/0 ko'rinishida kiriting."
+                )
             if value.startswith("redis+tls://"):
                 return "rediss://" + value.removeprefix("redis+tls://")
+            if "://" not in value:
+                return "redis://" + value
             return value
         return value
 
