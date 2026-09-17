@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -36,6 +37,7 @@ class MafiaState:
             return False
         alive = list(self.players.values())
         mafia_count = max(1, len(alive) // 4)
+        random.shuffle(alive)
         for player in alive[:mafia_count]:
             player.role = "mafia"
         if len(alive) > mafia_count:
@@ -66,8 +68,19 @@ class MafiaState:
         eliminated = max(tally, key=tally.get)
         self.players[eliminated].alive = False
         self.votes.clear()
-        self.phase = MafiaPhase.NIGHT
+        self.phase = MafiaPhase.DAY
         return eliminated
+
+    def winner(self) -> str | None:
+        """Return the winner after an elimination, if the game is over."""
+        alive = [player for player in self.players.values() if player.alive]
+        mafia = sum(player.role == "mafia" for player in alive)
+        citizens = len(alive) - mafia
+        if mafia == 0:
+            return "fuqarolar"
+        if mafia >= citizens:
+            return "mafia"
+        return None
 
     def to_dict(self) -> dict:
         return {

@@ -4,30 +4,38 @@ services:
     environment:
       POSTGRES_DB: oyunlar
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d oyunlar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   bot:
     build: .
     environment:
       BOT_API_TOKEN: ${BOT_API_TOKEN:?BOT_API_TOKEN is required}
-      GRAND_ADMIN_ID: ${GRAND_ADMIN_ID:-8126409678}
-      DEFAULT_CHANNEL_ID: ${DEFAULT_CHANNEL_ID:-4354232618}
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/oyunlar
+      GRAND_ADMIN_ID: ${GRAND_ADMIN_ID:?GRAND_ADMIN_ID is required}
+      DEFAULT_CHANNEL_ID: ${DEFAULT_CHANNEL_ID:-}
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/oyunlar
       REDIS_URL: redis://redis:6379/0
       AUTO_CREATE_SCHEMA: ${AUTO_CREATE_SCHEMA:-true}
       CONTEST_POLL_SECONDS: ${CONTEST_POLL_SECONDS:-30}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

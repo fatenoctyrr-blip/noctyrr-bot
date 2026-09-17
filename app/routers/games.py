@@ -4,6 +4,7 @@ import random
 from typing import Any
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from redis.asyncio import Redis
@@ -61,13 +62,17 @@ async def start_game(message: Message) -> None:
         await create_lobby(message, game_type)
     elif game_type == "jackpot":
         target = args[2] if len(args) > 2 else "777"
+        if len(target) != 3 or not target.isdigit() or int(target) > 999:
+            await message.answer("Jackpot kodi 000 dan 999 gacha bo'lgan 3 xonali raqam bo'lishi kerak.")
+            return
         gift = "Admin sovg'asi"
         await store.save(
             message.chat.id,
             {"type": "jackpot", "chat_id": message.chat.id, "target": target, "gift": gift},
         )
         await message.answer(
-            f"🎰 777 Jackpot boshlandi. Yutuqli kombinatsiya: {target}",
+            "🎰 777 Jackpot boshlandi. G'olib kombinatsiya yashirin.\n"
+            "Spin tugmasini bosib urinib ko'ring.",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [InlineKeyboardButton(text="🎰 Spin", callback_data=f"game:slot:{message.chat.id}")]
@@ -98,7 +103,14 @@ async def start_game(message: Message) -> None:
         if len(args) > 2:
             gift = args[2].replace("_", " ")
         if len(args) > 3:
-            chance = float(args[3])
+            try:
+                chance = float(args[3])
+            except ValueError:
+                await message.answer("Lotereya ehtimoli raqam bo'lishi kerak.")
+                return
+        if not 0 <= chance <= 100:
+            await message.answer("Lotereya ehtimoli 0 dan 100 gacha bo'lishi kerak.")
+            return
         await store.save(
             message.chat.id,
             {"type": "message_lottery", "chat_id": message.chat.id, "gift": gift, "chance": chance},
@@ -150,6 +162,16 @@ async def start_lobby_callback(callback: CallbackQuery) -> None:
             return
         state.phase = MafiaPhase.DAY
         await store.save(chat_id, state.to_dict() | {"type": "mafia"})
+        for player in state.players.values():
+            try:
+                await callback.bot.send_message(
+                    player.user_id,
+                    f"🔐 Mafia o'yinidagi rolingiz: <b>{player.role}</b>\n"
+                    "O'yin davomida rolingizni oshkor qilmang.",
+                )
+            except TelegramAPIError:
+                # The user may not have opened the bot in private chat yet.
+                pass
         await callback.message.answer(
             "🌞 Kun fazasi. Kimni chiqarishni tanlang:",
             reply_markup=player_keyboard(chat_id, state.to_dict()["players"]),
@@ -161,6 +183,16 @@ async def start_lobby_callback(callback: CallbackQuery) -> None:
             return
         state.round_no = 1
         await store.save(chat_id, state.to_dict() | {"type": "bunker"})
+        for player in state.players.values():
+            cards = "\n".join(f"• {key}: {value}" for key, value in player.cards.items())
+            try:
+                await callback.bot.send_message(
+                    player.user_id,
+                    f"🔐 Bunker kartalaringiz:\n{cards}",
+                )
+            except TelegramAPIError:
+                # The user may not have opened the bot in private chat yet.
+                pass
         await callback.message.answer(
             "🏚 1-raund. Ovoz berib bunkerdan chiqariladigan o'yinchini tanlang:",
             reply_markup=player_keyboard(chat_id, state.to_dict()["players"]),
@@ -187,8 +219,17 @@ async def vote_callback(callback: CallbackQuery) -> None:
         alive_ids = {user_id for user_id, player in state.players.items() if player.alive}
         if alive_ids <= set(state.votes):
             eliminated = state.resolve_day()
-            await store.save(chat_id, state.to_dict() | {"type": "mafia"})
-            await callback.message.answer(f"⚖️ Ovoz natijasi: {eliminated} chiqarildi.")
+            winner = state.winner()
+            if winner:
+                state.phase = MafiaPhase.FINISHED
+                await store.delete(chat_id)
+                await callback.message.answer(
+                    f"⚖️ Ovoz natijasi: {eliminated} chiqarildi.\n"
+                    f"🏆 G'olib: {winner}"
+                )
+            else:
+                await store.save(chat_id, state.to_dict() | {"type": "mafia"})
+                await callback.message.answer(f"⚖️ Ovoz natijasi: {eliminated} chiqarildi.")
         else:
             await store.save(chat_id, state.to_dict() | {"type": "mafia"})
             await callback.answer("Ovozingiz saqlandi.")
@@ -200,8 +241,18 @@ async def vote_callback(callback: CallbackQuery) -> None:
         active_ids = {user_id for user_id, player in state.players.items() if player.active}
         if active_ids <= set(state.votes):
             removed = state.resolve_round()
-            await store.save(chat_id, state.to_dict() | {"type": "bunker"})
-            await callback.message.answer(f"🚪 {removed} bunkerdan chiqarildi. Raund: {state.round_no}")
+            active_count = sum(player.active for player in state.players.values())
+            if active_count <= 1:
+                await store.delete(chat_id)
+                await callback.message.answer(
+                    f"🚪 {removed} bunkerdan chiqarildi.\n"
+                    f"🏆 Bunker g'olibi: {next(player.display_name for player in state.players.values() if player.active)}"
+                )
+            else:
+                await store.save(chat_id, state.to_dict() | {"type": "bunker"})
+                await callback.message.answer(
+                    f"🚪 {removed} bunkerdan chiqarildi. Raund: {state.round_no}"
+                )
         else:
             await store.save(chat_id, state.to_dict() | {"type": "bunker"})
             await callback.answer("Ovozingiz saqlandi.")

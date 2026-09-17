@@ -21,6 +21,19 @@ def test_mafia_assigns_core_roles():
     assert {"mafia", "doctor", "detective", "citizen"} <= roles
 
 
+def test_mafia_detects_citizen_win_after_mafia_elimination():
+    state = MafiaState(chat_id=-1, min_players=5)
+    for user_id in range(5):
+        state.add_player(user_id, f"User {user_id}")
+    assert state.start()
+    mafia_id = next(user_id for user_id, player in state.players.items() if player.role == "mafia")
+    state.phase = MafiaPhase.DAY
+    for user_id in state.players:
+        state.cast_vote(user_id, mafia_id)
+    assert state.resolve_day() == mafia_id
+    assert state.winner() == "fuqarolar"
+
+
 def test_bunker_cards_are_generated_and_round_resolves():
     state = BunkerState(chat_id=-1)
     for user_id in range(3):

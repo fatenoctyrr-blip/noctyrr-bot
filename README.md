@@ -15,7 +15,7 @@ Bot tokeni, Grand Admin ID'si va kanal ID'si source code ichiga yozilmaydi. Ular
    cp .env.example .env
    ```
 
-3. `.env` ichidagi qiymatlarni to'ldiring. Grand Admin va asosiy chat ID'lari oldindan qo'yilgan; faqat `BOT_API_TOKEN`ni Telegram BotFather tokeni bilan almashtiring.
+3. `.env` ichidagi qiymatlarni to'ldiring: `BOT_API_TOKEN`, `GRAND_ADMIN_ID` va `POSTGRES_PASSWORD` majburiy. `DEFAULT_CHANNEL_ID` ixtiyoriy.
 4. PostgreSQL va Redis'ni ishga tushiring:
 
    ```bash
@@ -58,9 +58,10 @@ Replit/server muhitida `BOT_API_TOKEN`ni secret/environment sifatida bering. Tok
 
 ### Grand Admin
 
-- `/admin` — barcha kanallar, faol konkurslar va global boshqaruv menyusi
-- `/override <contest_id> <telegram_user_id>` — g'olibni qo'lda belgilash
-- `/set_game_config <game_id> <json>` — o'yin parametrlarini o'zgartirish
+- `/admin` — inline Grand Admin paneli: statistika, kanallar va faol konkurslar
+- `/override <battle:contest_id|point:contest_id> <telegram_user_id>` — g'olibni qo'lda belgilash
+- `/game_config <chat_id> <target|secret|chance|gift> <value>` — faol o'yin parametrlarini o'zgartirish
+- Paneldagi tugmalar orqali faol konkursni tasdiqlab yakunlash
 
 ### Kanal admini
 
@@ -136,3 +137,5 @@ tests/
 - Telegram API rate limitlarini kuzating.
 - Pullik Stars uchun Telegram payment verification'ni payment provider va biznes qoidalariga moslab ulang; adminning `purchased` ball buyrug'i allaqachon mavjud.
 - Konkurs natijalarini o'zgartirish faqat Grand Admin ID orqali amalga oshadi va `admin_overrides` jadvaliga audit yozuvi tushadi.
+- `POSTGRES_PASSWORD`ni production'da kuchli qiymatga almashtiring; database va Redis portlari Compose orqali tashqariga ochilmaydi.
+- Contest command'lari chat scope bilan himoyalangan; admin paneli esa faqat Grand Admin uchun ko'rinadi.

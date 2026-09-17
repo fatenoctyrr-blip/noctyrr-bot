@@ -6,8 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     bot_api_token: str = Field(alias="BOT_API_TOKEN")
-    grand_admin_id: int = Field(default=8126409678, alias="GRAND_ADMIN_ID")
-    default_channel_id: int | None = Field(default=4354232618, alias="DEFAULT_CHANNEL_ID")
+    grand_admin_id: int = Field(alias="GRAND_ADMIN_ID")
+    default_channel_id: int | None = Field(default=None, alias="DEFAULT_CHANNEL_ID")
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/oyunlar",
         alias="DATABASE_URL",

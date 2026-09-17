@@ -2,7 +2,17 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -62,6 +72,7 @@ class BattleContest(Base):
 
 class BattleParticipant(Base):
     __tablename__ = "battle_contest_participants"
+    __table_args__ = (UniqueConstraint("contest_id", "user_id", name="uq_battle_participant"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     contest_id: Mapped[int] = mapped_column(ForeignKey("battle_contests.id"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
@@ -94,6 +105,7 @@ class PointContest(Base):
 
 class PointEntry(Base):
     __tablename__ = "point_entries"
+    __table_args__ = (UniqueConstraint("contest_id", "user_id", name="uq_point_entry"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     contest_id: Mapped[int] = mapped_column(ForeignKey("point_contests.id"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)

@@ -8,7 +8,7 @@ from aiogram.types import CallbackQuery, Message, MessageReactionUpdated
 from sqlalchemy import select
 
 from app.db import SessionLocal
-from app.models import BattleContest, ContestStatus, PointContest, User
+from app.models import BattleContest, Channel, ContestStatus, PointContest, User
 from app.services.contests import (
     add_points,
     add_requirement,
@@ -19,7 +19,7 @@ from app.services.contests import (
     leaderboard,
     requirements_for,
 )
-from app.services.permissions import is_chat_admin
+from app.services.permissions import is_chat_admin, is_grand_admin
 from app.services.subscriptions import check_requirements
 from app.services.users import ensure_channel, ensure_user
 
@@ -31,6 +31,16 @@ def options(text: str) -> dict[str, str]:
         match.group(1).lower(): match.group(2).strip()
         for match in re.finditer(r"(target|minutes|requirements|weights)\s*=\s*([^|]+)", text)
     }
+
+
+async def point_contest_in_chat(session, contest_id: int, chat_id: int) -> PointContest | None:
+    contest = await session.get(PointContest, contest_id)
+    if not contest:
+        return None
+    channel = await session.get(Channel, contest.channel_id)
+    if not channel or channel.telegram_channel_id != chat_id:
+        return None
+    return contest
 
 
 def contest_text(contest: BattleContest | PointContest) -> str:
@@ -84,15 +94,29 @@ async def create_battle_command(message: Message) -> None:
         return
     task, *tail = [part.strip() for part in raw.split("|")]
     config = options("|".join(tail))
-    target = int(config["target"]) if config.get("target", "").isdigit() else None
-    minutes = int(config["minutes"]) if config.get("minutes", "").isdigit() else None
+    try:
+        target = int(config["target"]) if config.get("target", "").isdigit() else None
+        minutes = int(config["minutes"]) if config.get("minutes", "").isdigit() else None
+        if target is not None and target <= 0:
+            raise ValueError("target 0 dan katta bo'lishi kerak")
+        if minutes is not None and minutes <= 0:
+            raise ValueError("minutes 0 dan katta bo'lishi kerak")
+    except ValueError as exc:
+        await message.answer(f"Parametr xatosi: {exc}")
+        return
     async with SessionLocal() as session:
         owner = await ensure_user(session, message.from_user)
         channel = await ensure_channel(session, message.chat.id, owner, message.chat.title)
         contest = await create_battle(session, channel, task, owner.id, target, minutes)
         for resource in config.get("requirements", "").split(","):
             if resource.strip():
-                await add_requirement(session, contest.id, int(resource.strip()), resource.strip())
+                try:
+                    resource_id = int(resource.strip())
+                except ValueError:
+                    await session.rollback()
+                    await message.answer("requirements ichidagi chat ID raqam bo'lishi kerak.")
+                    return
+                await add_requirement(session, contest.id, resource_id, resource.strip())
         await session.commit()
         contest_id = contest.id
     await post_battle(message, contest_id)
@@ -117,8 +141,13 @@ async def create_point_command(message: Message) -> None:
         if ":" in item:
             key, value = item.split(":", 1)
             if key.strip() in weights and value.strip().isdigit():
-                weights[key.strip()] = int(value.strip())
+                parsed = int(value.strip())
+                if parsed >= 0:
+                    weights[key.strip()] = parsed
     minutes = int(config["minutes"]) if config.get("minutes", "").isdigit() else None
+    if minutes is not None and minutes <= 0:
+        await message.answer("minutes 0 dan katta bo'lishi kerak.")
+        return
     async with SessionLocal() as session:
         owner = await ensure_user(session, message.from_user)
         channel = await ensure_channel(session, message.chat.id, owner, message.chat.title)
@@ -202,13 +231,25 @@ async def add_points_command(message: Message) -> None:
     if not await is_chat_admin(message.bot, message.chat.id, message.from_user.id):
         await message.answer("Faqat admin.")
         return
-    contest_id, telegram_id, kind, amount = int(args[1]), int(args[2]), args[3], int(args[4])
+    try:
+        contest_id, telegram_id, amount = int(args[1]), int(args[2]), int(args[4])
+    except ValueError:
+        await message.answer("contest_id, user_id va amount raqam bo'lishi kerak.")
+        return
     async with SessionLocal() as session:
+        contest = await point_contest_in_chat(session, contest_id, message.chat.id)
+        if not contest and not is_grand_admin(message.from_user.id):
+            await message.answer("Bu konkurs shu chatga tegishli emas.")
+            return
         user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
         if not user:
             await message.answer("Foydalanuvchi avval botdan foydalangan bo'lishi kerak.")
             return
-        entry = await add_points(session, contest_id, user.id, kind, amount)
+        try:
+            entry = await add_points(session, contest_id, user.id, args[3], amount)
+        except ValueError as exc:
+            await message.answer(str(exc))
+            return
         await session.commit()
     await message.answer(f"Ball qo'shildi. Jami xom ball: {entry.total}")
 
@@ -222,8 +263,30 @@ async def stop_contest_command(message: Message) -> None:
     if not await is_chat_admin(message.bot, message.chat.id, message.from_user.id):
         await message.answer("Faqat admin.")
         return
+    try:
+        contest_id = int(args[1])
+    except ValueError:
+        await message.answer("Contest ID raqam bo'lishi kerak.")
+        return
     async with SessionLocal() as session:
-        winner_id = await finish_contest(session, int(args[1]))
+        battle = await session.get(BattleContest, contest_id)
+        point = await session.get(PointContest, contest_id)
+        if battle:
+            channel = await session.get(Channel, battle.channel_id)
+            if not channel or channel.telegram_channel_id != message.chat.id:
+                await message.answer("Bu konkurs shu chatga tegishli emas.")
+                return
+            kind = "battle"
+        elif point:
+            channel = await session.get(Channel, point.channel_id)
+            if not channel or channel.telegram_channel_id != message.chat.id:
+                await message.answer("Bu konkurs shu chatga tegishli emas.")
+                return
+            kind = "point"
+        else:
+            await message.answer("Konkurs topilmadi.")
+            return
+        winner_id = await finish_contest(session, contest_id, kind=kind, chat_id=message.chat.id)
     await message.answer(f"Konkurs tugadi. G'olib: {winner_id or 'aniqlanmadi'}")
 
 
@@ -260,10 +323,18 @@ async def count_reaction(event: MessageReactionUpdated) -> None:
         )
         if not contest:
             return
-        user = await session.scalar(select(User).where(User.telegram_id == event.user.id))
-        if not user:
-            return
-        delta = max(0, len(event.new_reaction) - len(event.old_reaction))
+        user = await ensure_user(session, event.user)
+        old_keys = {
+            getattr(reaction, "emoji", None) or getattr(reaction, "custom_emoji_id", None)
+            or str(reaction)
+            for reaction in event.old_reaction
+        }
+        new_keys = {
+            getattr(reaction, "emoji", None) or getattr(reaction, "custom_emoji_id", None)
+            or str(reaction)
+            for reaction in event.new_reaction
+        }
+        delta = len(new_keys - old_keys)
         if delta:
             await add_points(session, contest.id, user.id, "reaction", delta)
             await session.commit()

@@ -30,11 +30,25 @@ async def finish_expired_contests(bot: Bot) -> None:
                 )
             )
         )
-        for contest in [*contests, *point_contests]:
+        for contest in contests:
             from datetime import UTC, datetime
 
             if contest.end_time and contest.end_time <= datetime.now(UTC):
-                winner_id = await finish_contest(session, contest.id)
+                winner_id = await finish_contest(session, contest.id, kind="battle")
+                if contest.post_chat_id:
+                    try:
+                        await bot.send_message(
+                            contest.post_chat_id,
+                            f"⏰ Konkurs #{contest.id} yakunlandi.\n"
+                            f"G'olib: {winner_id or 'aniqlanmadi'}",
+                        )
+                    except Exception:
+                        logger.exception("Unable to announce contest %s", contest.id)
+        for contest in point_contests:
+            from datetime import UTC, datetime
+
+            if contest.end_time and contest.end_time <= datetime.now(UTC):
+                winner_id = await finish_contest(session, contest.id, kind="point")
                 if contest.post_chat_id:
                     try:
                         await bot.send_message(

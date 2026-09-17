@@ -1,5 +1,6 @@
 import random
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,53 @@ from app.models import (
     PointEntry,
     SubscriptionRequirement,
 )
+
+ContestKind = Literal["battle", "point"]
+
+
+async def resolve_contest(
+    session: AsyncSession,
+    contest_id: int,
+    kind: ContestKind | None = None,
+    chat_id: int | None = None,
+) -> tuple[ContestKind, BattleContest | PointContest] | None:
+    """Resolve a contest without allowing unrelated chat admins to cross-control it."""
+    channel_ids: set[int] | None = None
+    if chat_id is not None:
+        channel_id = await session.scalar(
+            select(Channel.id).where(Channel.telegram_channel_id == chat_id)
+        )
+        channel_ids = {channel_id} if channel_id is not None else set()
+
+    async def get(model: type[BattleContest] | type[PointContest]) -> BattleContest | PointContest | None:
+        query = select(model).where(model.id == contest_id)
+        if channel_ids is not None:
+            query = query.where(model.channel_id.in_(channel_ids))
+        return await session.scalar(query)
+
+    if kind in (None, "battle"):
+        battle = await get(BattleContest)
+        if battle:
+            return "battle", battle
+    if kind in (None, "point"):
+        point = await get(PointContest)
+        if point:
+            return "point", point
+    return None
+
+
+def parse_contest_ref(value: str) -> tuple[ContestKind | None, int]:
+    """Accept both `12` and the unambiguous `battle:12` / `point:12` format."""
+    if ":" in value:
+        prefix, raw_id = value.split(":", 1)
+        if prefix not in {"battle", "point"}:
+            raise ValueError("Contest turi battle yoki point bo'lishi kerak")
+    else:
+        prefix, raw_id = None, value
+    contest_id = int(raw_id)
+    if contest_id <= 0:
+        raise ValueError("Contest ID musbat bo'lishi kerak")
+    return prefix, contest_id
 
 
 async def join_battle(
@@ -183,10 +231,19 @@ async def leaderboard(
 
 
 async def finish_contest(
-    session: AsyncSession, contest_id: int, forced_winner_id: int | None = None
+    session: AsyncSession,
+    contest_id: int,
+    forced_winner_id: int | None = None,
+    kind: ContestKind | None = None,
+    chat_id: int | None = None,
 ) -> int | None:
-    battle = await session.get(BattleContest, contest_id)
-    if battle:
+    resolved = await resolve_contest(session, contest_id, kind, chat_id)
+    if not resolved:
+        raise ValueError("Contest topilmadi yoki bu chatga tegishli emas")
+    resolved_kind, contest = resolved
+    if resolved_kind == "battle":
+        battle = contest
+        assert isinstance(battle, BattleContest)
         battle.status = ContestStatus.FINISHED
         if forced_winner_id:
             battle.winner_id = forced_winner_id
@@ -201,8 +258,9 @@ async def finish_contest(
             battle.winner_id = choose_random_winner(ids)
         await session.commit()
         return battle.winner_id
-    point = await session.get(PointContest, contest_id)
-    if point:
+    if resolved_kind == "point":
+        point = contest
+        assert isinstance(point, PointContest)
         point.status = ContestStatus.FINISHED
         if forced_winner_id:
             point.winner_id = forced_winner_id
@@ -211,7 +269,7 @@ async def finish_contest(
             point.winner_id = rows[0][0].user_id if rows else None
         await session.commit()
         return point.winner_id
-    raise ValueError("Contest not found")
+    raise ValueError("Contest turi noma'lum")
 
 
 def choose_random_winner(user_ids: list[int]) -> int | None:
@@ -224,17 +282,21 @@ async def override_winner(
     grand_admin_id: int,
     chosen_winner_id: int,
     reason: str | None = None,
+    kind: ContestKind | None = None,
+    chat_id: int | None = None,
 ) -> AdminOverride:
-    contest = await session.get(BattleContest, contest_id)
-    point_contest = await session.get(PointContest, contest_id)
-    if contest:
+    resolved = await resolve_contest(session, contest_id, kind, chat_id)
+    if not resolved:
+        raise ValueError("Contest topilmadi yoki bu chatga tegishli emas")
+    resolved_kind, contest = resolved
+    if resolved_kind == "battle":
+        assert isinstance(contest, BattleContest)
         contest.winner_id = chosen_winner_id
         contest.status = ContestStatus.FINISHED
-    elif point_contest:
-        point_contest.winner_id = chosen_winner_id
-        point_contest.status = ContestStatus.FINISHED
     else:
-        raise ValueError("Contest not found")
+        assert isinstance(contest, PointContest)
+        contest.winner_id = chosen_winner_id
+        contest.status = ContestStatus.FINISHED
     audit = AdminOverride(
         contest_id=contest_id,
         grand_admin_id=grand_admin_id,
